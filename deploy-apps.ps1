@@ -1,4 +1,5 @@
 #Requires -RunAsAdministrator
+#Requires -Version 5.1
 
 param(
     [string]$Domain = "yourdomain.com",
@@ -7,6 +8,7 @@ param(
 )
 
 # Setup error handling
+Set-StrictMode -Version Latest
 $ErrorActionPreference = "Continue"
 $script:installationsFailed = @()
 $script:installationsSucceeded = @()
@@ -77,19 +79,19 @@ foreach ($app in $apps) {
         $exitCode = $LASTEXITCODE
         
         if ($exitCode -eq 0) {
-            Write-Host "✓ Successfully installed $app." -ForegroundColor Green
+            Write-Host "[OK] Successfully installed $app." -ForegroundColor Green
             $script:installationsSucceeded += $app
         } elseif ($exitCode -eq -1978335215 -or $exitCode -eq 0x80070005) {
             # Common winget exit codes for already installed or access denied
-            Write-Warning "⚠ $app installation skipped (already installed or access issue, Exit code: $exitCode)."
+            Write-Warning "[WARN] $app installation skipped (already installed or access issue, Exit code: $exitCode)."
             $script:installationsSucceeded += $app
         } else {
-            Write-Error "✗ Failed to install $app (Exit code: $exitCode)."
+            Write-Error "[FAIL] Failed to install $app (Exit code: $exitCode)."
             Write-Error "Output: $installOutput"
             $script:installationsFailed += $app
         }
     } catch {
-        Write-Error "✗ Exception installing $app`: $_"
+        Write-Error "[FAIL] Exception installing $app`: $_"
         $script:installationsFailed += $app
     }
 }
@@ -98,6 +100,8 @@ foreach ($app in $apps) {
 if (-not $SkipGCPWConfig) {
     if ([string]::IsNullOrWhiteSpace($Domain) -or $Domain -eq "yourdomain.com") {
         Write-Warning "GCPW configuration skipped: Domain not configured. Replace 'yourdomain.com' in the script or use -Domain parameter."
+    } elseif ($Domain -notmatch '^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(\s*,\s*([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,})*$') {
+        Write-Error "GCPW configuration skipped: '$Domain' is not a valid domain (or comma-separated domain list)."
     } else {
         Write-Host "Configuring GCPW for domain: $Domain" -ForegroundColor Cyan
         try {
@@ -112,9 +116,9 @@ if (-not $SkipGCPWConfig) {
             
             # Set domain configuration
             $null = New-ItemProperty -Path $gcpwPath -Name "domains_allowed_to_login" -Value $Domain -PropertyType String -Force -ErrorAction Stop
-            Write-Host "✓ GCPW configured successfully for domain: $Domain" -ForegroundColor Green
+            Write-Host "[OK] GCPW configured successfully for domain: $Domain" -ForegroundColor Green
         } catch {
-            Write-Error "✗ Failed to configure GCPW registry settings: $_"
+            Write-Error "[FAIL] Failed to configure GCPW registry settings: $_"
         }
     }
 }
@@ -124,12 +128,12 @@ Write-Host "`n" -ForegroundColor Gray
 Write-Host "========== INSTALLATION SUMMARY ==========" -ForegroundColor Cyan
 Write-Host "Successful: $($script:installationsSucceeded.Count)" -ForegroundColor Green
 if ($script:installationsSucceeded.Count -gt 0) {
-    $script:installationsSucceeded | ForEach-Object { Write-Host "  ✓ $_" -ForegroundColor Green }
+    $script:installationsSucceeded | ForEach-Object { Write-Host "  [OK] $_" -ForegroundColor Green }
 }
 
 Write-Host "Failed: $($script:installationsFailed.Count)" -ForegroundColor $(if ($script:installationsFailed.Count -gt 0) { 'Red' } else { 'Green' })
 if ($script:installationsFailed.Count -gt 0) {
-    $script:installationsFailed | ForEach-Object { Write-Host "  ✗ $_" -ForegroundColor Red }
+    $script:installationsFailed | ForEach-Object { Write-Host "  [FAIL] $_" -ForegroundColor Red }
 }
 Write-Host "========================================`n" -ForegroundColor Cyan
 
@@ -140,4 +144,8 @@ Write-Host "Script finished at $(Get-Date)" -ForegroundColor Cyan
 Stop-Transcript
 
 # Exit with appropriate code
-exit $($script:installationsFailed.Count -gt 0 ? 1 : 0)
+if ($script:installationsFailed.Count -gt 0) {
+    exit 1
+} else {
+    exit 0
+}
