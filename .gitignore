@@ -1,0 +1,15 @@
+# Windows shell folder metadata
+desktop.ini
+Thumbs.db
+
+# Script logs (deploy-apps-YYYYMMDD-HHmmss.log)
+*.log
+
+# PowerShell transcripts / temp
+*.ps1.bak
+*.tmp
+
+# Secrets / local config overrides (do not commit credentials)
+*.secrets.json
+*.env
+.env.*
